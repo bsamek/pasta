@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Copy Page Content",
+  "version": "1.0",
+  "description": "Copy the main content of a page to clipboard, filtering out menus and navigation",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_title": "Copy page content"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
