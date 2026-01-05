@@ -1,4 +1,8 @@
-chrome.action.onClicked.addListener(async (tab) => {
+const BADGE_SUCCESS = { text: '✓', color: '#4CAF50' };
+const BADGE_ERROR = { text: '✗', color: '#f44336' };
+const BADGE_CLEAR_DELAY = 2000;
+
+async function handleActionClick(tab) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -6,23 +10,35 @@ chrome.action.onClicked.addListener(async (tab) => {
     });
 
     if (results && results[0] && results[0].result) {
-      // Show success badge
-      chrome.action.setBadgeText({ text: '✓', tabId: tab.id });
-      chrome.action.setBadgeBackgroundColor({ color: '#4CAF50', tabId: tab.id });
-
-      // Clear badge after 2 seconds
-      setTimeout(() => {
-        chrome.action.setBadgeText({ text: '', tabId: tab.id });
-      }, 2000);
+      showBadge(tab.id, BADGE_SUCCESS);
     }
   } catch (error) {
     console.error('Failed to copy page content:', error);
-    // Show error badge
-    chrome.action.setBadgeText({ text: '✗', tabId: tab.id });
-    chrome.action.setBadgeBackgroundColor({ color: '#f44336', tabId: tab.id });
-
-    setTimeout(() => {
-      chrome.action.setBadgeText({ text: '', tabId: tab.id });
-    }, 2000);
+    showBadge(tab.id, BADGE_ERROR);
   }
-});
+}
+
+function showBadge(tabId, { text, color }) {
+  chrome.action.setBadgeText({ text, tabId });
+  chrome.action.setBadgeBackgroundColor({ color, tabId });
+
+  setTimeout(() => {
+    chrome.action.setBadgeText({ text: '', tabId });
+  }, BADGE_CLEAR_DELAY);
+}
+
+// Register listener when loaded as extension
+if (typeof chrome !== 'undefined' && chrome.action && chrome.action.onClicked) {
+  chrome.action.onClicked.addListener(handleActionClick);
+}
+
+// Export for testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    handleActionClick,
+    showBadge,
+    BADGE_SUCCESS,
+    BADGE_ERROR,
+    BADGE_CLEAR_DELAY
+  };
+}
