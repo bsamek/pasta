@@ -299,7 +299,8 @@ describe('handleActionClick - additional edge cases', () => {
     jest.useRealTimers();
   });
 
-  test('handles result with frameId property', async () => {
+  test('works correctly when result includes frameId property', async () => {
+    // Chrome returns frameId with results; verify it doesn't break our logic
     chrome.scripting.executeScript.mockResolvedValue([{
       result: true,
       frameId: 0
@@ -313,7 +314,9 @@ describe('handleActionClick - additional edge cases', () => {
     });
   });
 
-  test('handles multiple frames in results', async () => {
+  test('uses first frame result when multiple frames present', async () => {
+    // Documents current behavior: only first frame's result is checked
+    // This is intentional - content script runs in main frame only
     chrome.scripting.executeScript.mockResolvedValue([
       { result: true, frameId: 0 },
       { result: false, frameId: 1 }
@@ -321,7 +324,6 @@ describe('handleActionClick - additional edge cases', () => {
 
     await handleActionClick({ id: 123 });
 
-    // Should show success based on first frame result
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
       text: '✓',
       tabId: 123
@@ -376,7 +378,10 @@ describe('handleActionClick - additional edge cases', () => {
     });
   });
 
-  test('handles result with error property', async () => {
+  test('shows no badge when script returns null result with error', async () => {
+    // Documents current behavior: falsy results show no badge
+    // This is intentional - success badge only shown for truthy results
+    // Error badge is only shown when executeScript itself throws
     chrome.scripting.executeScript.mockResolvedValue([{
       result: null,
       error: { message: 'Script error' }
@@ -384,7 +389,6 @@ describe('handleActionClick - additional edge cases', () => {
 
     await handleActionClick({ id: 123 });
 
-    // No badge shown when result is null/falsy
     expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
   });
 

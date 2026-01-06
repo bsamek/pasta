@@ -519,7 +519,10 @@ describe('SELECTORS_TO_REMOVE', () => {
   });
 });
 
-describe('copyContent - error handling', () => {
+describe('copyContent - error propagation', () => {
+  // These tests document that clipboard errors propagate to the caller
+  // The content script doesn't catch clipboard errors - they bubble up
+  // to executeScript which then triggers the error badge in background.js
   let originalWriteText;
 
   beforeEach(() => {
@@ -531,7 +534,7 @@ describe('copyContent - error handling', () => {
     navigator.clipboard.writeText = originalWriteText;
   });
 
-  test('handles clipboard write failure gracefully', () => {
+  test('propagates clipboard write errors to caller', () => {
     navigator.clipboard.writeText.mockImplementation(() => {
       throw new Error('Clipboard write failed');
     });
@@ -540,7 +543,7 @@ describe('copyContent - error handling', () => {
     expect(() => copyContent()).toThrow('Clipboard write failed');
   });
 
-  test('handles clipboard permission denied', () => {
+  test('propagates clipboard permission errors to caller', () => {
     navigator.clipboard.writeText.mockImplementation(() => {
       throw new DOMException('Permission denied', 'NotAllowedError');
     });
@@ -610,20 +613,22 @@ describe('copyContent - edge cases', () => {
     expect(copiedText).toContain('to continue');
   });
 
-  test('extracts text from images alt attribute via textContent', () => {
+  test('handles images in content without breaking text flow', () => {
     document.body.innerHTML = '<article><p>Text before</p><img alt="Image description"><p>Text after</p></article>';
     copyContent();
     const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
     expect(copiedText).toContain('Text before');
     expect(copiedText).toContain('Text after');
+    // Note: alt text is not included in innerText/textContent extraction
   });
 });
 
 describe('collapseNewlines - additional edge cases', () => {
-  test('handles Windows line endings (CRLF)', () => {
+  test('does not collapse Windows line endings (CRLF) - documents current behavior', () => {
+    // Current implementation only matches \n, not \r\n
+    // This documents the limitation rather than asserting ideal behavior
     const result = collapseNewlines('Line 1\r\n\r\n\r\nLine 2');
-    // Note: This tests current behavior - may not collapse CRLF
-    expect(result).toBeDefined();
+    expect(result).toBe('Line 1\r\n\r\n\r\nLine 2');
   });
 
   test('handles mixed line endings', () => {
