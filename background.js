@@ -14,8 +14,10 @@ async function handleActionClick(tab) {
       files: ['content.js']
     });
 
-    if (results && results[0] && results[0].result) {
+    if (results?.[0]?.result) {
       showBadge(tab.id, BADGE_SUCCESS);
+    } else if (results?.[0]?.result === false) {
+      showBadge(tab.id, BADGE_ERROR);
     }
   } catch {
     showBadge(tab.id, BADGE_ERROR);

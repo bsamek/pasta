@@ -258,14 +258,14 @@ const container = createContainerWithHTML('<nav>Navigation</nav><p>Content</p>')
 
 ## Summary of Recommendations
 
-| Issue | Priority | Recommendation | Effort |
-|-------|----------|----------------|--------|
-| 1. Simplify `findMainContent()` | HIGH | **REFACTOR** | Low |
-| 2. Simplify result checking | MEDIUM | **REFACTOR** | Very Low |
-| 3. Add error handling to clipboard | MEDIUM | **CONSIDER** | Medium |
-| 4. Organize selectors | LOW | SKIP | Low |
-| 5. Handle missing badge case | LOW | SKIP | Very Low |
-| 6. Extract test helpers | LOW | SKIP | Low |
+| Issue | Priority | Recommendation | Effort | Status |
+|-------|----------|----------------|--------|--------|
+| 1. Simplify `findMainContent()` | HIGH | **REFACTOR** | Low | ✅ DONE |
+| 2. Simplify result checking | MEDIUM | **REFACTOR** | Very Low | ✅ DONE |
+| 3. Add error handling to clipboard | MEDIUM | **CONSIDER** | Medium | ✅ DONE |
+| 4. Organize selectors | LOW | SKIP | Low | - |
+| 5. Handle missing badge case | LOW | SKIP | Very Low | - |
+| 6. Extract test helpers | LOW | SKIP | Low | - |
 
 ## Recommended Action Plan
 

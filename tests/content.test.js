@@ -444,10 +444,17 @@ describe('copyContent', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 
-  test('returns true on success', () => {
+  test('returns true on success', async () => {
     document.body.innerHTML = '<article>Content</article>';
-    const result = copyContent();
+    const result = await copyContent();
     expect(result).toBe(true);
+  });
+
+  test('returns false when clipboard write fails', async () => {
+    document.body.innerHTML = '<article>Content</article>';
+    navigator.clipboard.writeText.mockRejectedValueOnce(new Error('Permission denied'));
+    const result = await copyContent();
+    expect(result).toBe(false);
   });
 
   test('does not modify the original DOM', () => {

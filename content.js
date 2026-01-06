@@ -1,20 +1,14 @@
 // Wrap in IIFE to prevent redeclaration errors when re-injected
 (function() {
+  // Content selectors in priority order
+  const CONTENT_SELECTORS = ['article', 'main', '[role="main"]'];
+
   // Find the main content element
   function findMainContent() {
-    // Priority 1: article element
-    const article = document.querySelector('article');
-    if (article) return article;
-
-    // Priority 2: main element
-    const main = document.querySelector('main');
-    if (main) return main;
-
-    // Priority 3: role="main"
-    const roleMain = document.querySelector('[role="main"]');
-    if (roleMain) return roleMain;
-
-    // Fallback: body
+    for (const selector of CONTENT_SELECTORS) {
+      const element = document.querySelector(selector);
+      if (element) return element;
+    }
     return document.body;
   }
 
@@ -59,17 +53,21 @@
   }
 
   // Extract and copy content
-  function copyContent() {
-    const mainContent = findMainContent();
-    const clone = mainContent.cloneNode(true);
-    removeNonContent(clone);
+  async function copyContent() {
+    try {
+      const mainContent = findMainContent();
+      const clone = mainContent.cloneNode(true);
+      removeNonContent(clone);
 
-    // Use innerText if available (browser), fallback to textContent (jsdom)
-    const rawText = clone.innerText || clone.textContent || '';
-    const text = collapseNewlines(rawText);
+      // Use innerText if available (browser), fallback to textContent (jsdom)
+      const rawText = clone.innerText || clone.textContent || '';
+      const text = collapseNewlines(rawText);
 
-    navigator.clipboard.writeText(text);
-    return true;
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // Export for testing
@@ -79,6 +77,7 @@
       removeNonContent,
       collapseNewlines,
       copyContent,
+      CONTENT_SELECTORS,
       SELECTORS_TO_REMOVE
     };
   }
