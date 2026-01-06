@@ -159,7 +159,6 @@ describe('handleActionClick', () => {
   });
 
   test('shows error badge when script throws', async () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     chrome.scripting.executeScript.mockRejectedValue(new Error('Script failed'));
 
     await handleActionClick(mockTab);
@@ -176,20 +175,6 @@ describe('handleActionClick', () => {
       color: '#f44336',
       tabId: 123
     });
-
-    consoleError.mockRestore();
-  });
-
-  test('logs error when script fails', async () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
-    const error = new Error('Script failed');
-    chrome.scripting.executeScript.mockRejectedValue(error);
-
-    await handleActionClick(mockTab);
-
-    expect(consoleError).toHaveBeenCalledWith('Failed to copy page content:', error);
-
-    consoleError.mockRestore();
   });
 
   test('does not show success badge when result is falsy', async () => {
@@ -263,7 +248,6 @@ describe('integration scenarios', () => {
   });
 
   test('full error flow: click -> error -> badge -> clear', async () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     chrome.scripting.executeScript.mockRejectedValue(new Error('Permission denied'));
     const tab = { id: 200 };
 
@@ -289,8 +273,6 @@ describe('integration scenarios', () => {
       text: '',
       tabId: 200
     });
-
-    consoleError.mockRestore();
   });
 
   test('multiple rapid clicks on different tabs', async () => {

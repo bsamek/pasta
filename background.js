@@ -17,8 +17,7 @@ async function handleActionClick(tab) {
     if (results && results[0] && results[0].result) {
       showBadge(tab.id, BADGE_SUCCESS);
     }
-  } catch (error) {
-    console.error('Failed to copy page content:', error);
+  } catch {
     showBadge(tab.id, BADGE_ERROR);
   }
 }
