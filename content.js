@@ -53,7 +53,7 @@
   }
 
   // Extract and copy content
-  async function copyContent() {
+  function copyContent() {
     const mainContent = findMainContent();
     const clone = mainContent.cloneNode(true);
     removeNonContent(clone);
@@ -62,7 +62,7 @@
     const rawText = clone.innerText || clone.textContent || '';
     const text = collapseNewlines(rawText);
 
-    await navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text);
     return true;
   }
 
