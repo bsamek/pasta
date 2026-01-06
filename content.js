@@ -70,11 +70,6 @@ function copyContent() {
   return true;
 }
 
-// Auto-execute when loaded as content script
-if (typeof module === 'undefined') {
-  copyContent();
-}
-
 // Export for testing
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -84,4 +79,10 @@ if (typeof module !== 'undefined' && module.exports) {
     copyContent,
     SELECTORS_TO_REMOVE
   };
+}
+
+// Auto-execute when loaded as content script
+// Must be last so executeScript captures the return value
+if (typeof module === 'undefined') {
+  copyContent();
 }
