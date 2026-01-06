@@ -518,3 +518,50 @@ describe('SELECTORS_TO_REMOVE', () => {
     expect(SELECTORS_TO_REMOVE).toContain('iframe');
   });
 });
+
+describe('re-injection guard', () => {
+  const contentPath = require.resolve('../content.js');
+
+  beforeEach(() => {
+    // Reset the window flags
+    delete window.__pastaContentLoaded;
+    delete window.__pastaCopyContent;
+  });
+
+  afterEach(() => {
+    // Clean up
+    delete window.__pastaContentLoaded;
+    delete window.__pastaCopyContent;
+  });
+
+  test('sets __pastaContentLoaded flag on first load', () => {
+    jest.isolateModules(() => {
+      expect(window.__pastaContentLoaded).toBeUndefined();
+      require('../content.js');
+      expect(window.__pastaContentLoaded).toBe(true);
+    });
+  });
+
+  test('stores copyContent reference on window', () => {
+    jest.isolateModules(() => {
+      expect(window.__pastaCopyContent).toBeUndefined();
+      require('../content.js');
+      expect(typeof window.__pastaCopyContent).toBe('function');
+    });
+  });
+
+  test('calls stored copyContent on re-injection', () => {
+    // Set up as if script was already loaded
+    window.__pastaContentLoaded = true;
+    const mockCopyContent = jest.fn();
+    window.__pastaCopyContent = mockCopyContent;
+
+    // Load module - should detect already loaded and call stored function
+    jest.isolateModules(() => {
+      require('../content.js');
+    });
+
+    // Should have called the stored function (re-injection path)
+    expect(mockCopyContent).toHaveBeenCalled();
+  });
+});
