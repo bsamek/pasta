@@ -565,3 +565,231 @@ describe('re-injection guard', () => {
     expect(mockCopyContent).toHaveBeenCalled();
   });
 });
+
+describe('content extraction edge cases', () => {
+  beforeEach(() => {
+    navigator.clipboard.writeText.mockClear();
+  });
+
+  test('handles complex nested content structures', () => {
+    document.body.innerHTML = `
+      <article>
+        <div>
+          <div>
+            <p>Nested paragraph 1</p>
+            <div>
+              <p>Deeply nested paragraph 2</p>
+            </div>
+          </div>
+        </div>
+        <p>Regular paragraph</p>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Nested paragraph 1');
+    expect(copiedText).toContain('Deeply nested paragraph 2');
+    expect(copiedText).toContain('Regular paragraph');
+  });
+
+  test('handles content with mixed whitespace', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>Line 1</p>
+
+
+        <p>Line 2</p>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    // Should collapse excessive newlines
+    expect(copiedText).not.toMatch(/\n{3,}/);
+  });
+
+  test('extracts content with special characters', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>Text with "quotes" and 'apostrophes'</p>
+        <p>Special chars: & < > © ™</p>
+      </article>
+    `;
+    copyContent();
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+
+  test('handles content with inline elements', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>This is <strong>bold</strong> and <em>italic</em> text</p>
+        <p>This has a <a href="#">link</a> inside</p>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('bold');
+    expect(copiedText).toContain('italic');
+    expect(copiedText).toContain('link');
+  });
+
+  test('removes nested navigation within main content', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>Article content</p>
+        <nav>Inline navigation</nav>
+        <p>More content</p>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).not.toContain('Inline navigation');
+    expect(copiedText).toContain('Article content');
+    expect(copiedText).toContain('More content');
+  });
+
+  test('handles article with lists', () => {
+    document.body.innerHTML = `
+      <article>
+        <h2>List heading</h2>
+        <ul>
+          <li>Item 1</li>
+          <li>Item 2</li>
+          <li>Item 3</li>
+        </ul>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('List heading');
+    expect(copiedText).toContain('Item 1');
+    expect(copiedText).toContain('Item 2');
+    expect(copiedText).toContain('Item 3');
+  });
+
+  test('handles content with tables', () => {
+    document.body.innerHTML = `
+      <article>
+        <table>
+          <tr>
+            <td>Cell 1</td>
+            <td>Cell 2</td>
+          </tr>
+        </table>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Cell 1');
+    expect(copiedText).toContain('Cell 2');
+  });
+
+  test('handles empty paragraphs and divs', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>Content 1</p>
+        <p></p>
+        <div></div>
+        <p>Content 2</p>
+      </article>
+    `;
+    copyContent();
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+
+  test('handles content with code blocks', () => {
+    document.body.innerHTML = `
+      <article>
+        <p>Here is some code:</p>
+        <pre><code>function test() {
+  return true;
+}</code></pre>
+      </article>
+    `;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Here is some code:');
+    expect(copiedText).toContain('function test()');
+  });
+});
+
+describe('removeNonContent comprehensive coverage', () => {
+  test('handles content with multiple removal candidates', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <header>Header</header>
+      <nav>Navigation</nav>
+      <aside>Sidebar</aside>
+      <main>Main content</main>
+      <footer>Footer</footer>
+      <script>alert('test');</script>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('header')).toBeNull();
+    expect(container.querySelector('nav')).toBeNull();
+    expect(container.querySelector('aside')).toBeNull();
+    expect(container.querySelector('footer')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.querySelector('main')).not.toBeNull();
+  });
+
+  test('removes all advertisement variations', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div class="advertisement">Ad 1</div>
+      <div class="ad">Ad 2</div>
+      <div class="ads">Ad 3</div>
+      <p class="content">Real content</p>
+    `;
+    removeNonContent(container);
+    expect(container.textContent).toContain('Real content');
+    expect(container.textContent).not.toContain('Ad 1');
+    expect(container.textContent).not.toContain('Ad 2');
+    expect(container.textContent).not.toContain('Ad 3');
+  });
+
+  test('removes social and comments sections', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <p>Article text</p>
+      <div class="social-share">Share this</div>
+      <div class="comments">Comments here</div>
+      <div class="related-posts">Related posts</div>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('.social-share')).toBeNull();
+    expect(container.querySelector('.comments')).toBeNull();
+    expect(container.querySelector('.related-posts')).toBeNull();
+  });
+});
+
+describe('collapseNewlines edge cases', () => {
+  test('handles text with mixed newline counts', () => {
+    const input = 'A\nB\n\nC\n\n\nD\n\n\n\nE';
+    const result = collapseNewlines(input);
+    expect(result).toBe('A\nB\n\nC\n\nD\n\nE');
+  });
+
+  test('handles text starting with many newlines', () => {
+    const input = '\n\n\n\nContent';
+    const result = collapseNewlines(input);
+    expect(result).toBe('Content');
+  });
+
+  test('handles text ending with many newlines', () => {
+    const input = 'Content\n\n\n\n';
+    const result = collapseNewlines(input);
+    expect(result).toBe('Content');
+  });
+
+  test('handles text with only newlines', () => {
+    const input = '\n\n\n\n\n';
+    const result = collapseNewlines(input);
+    expect(result).toBe('');
+  });
+
+  test('handles mixed spaces and newlines', () => {
+    const input = '  \n  \n  \nContent\n  \n  \n  ';
+    const result = collapseNewlines(input);
+    expect(result).toBe('Content');
+  });
+});

@@ -448,4 +448,116 @@ describe('icon status regression tests', () => {
 
     consoleError.mockRestore();
   });
+
+  test('icon changes correctly in rapid succession', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{ result: true }]);
+    const tab = { id: 500 };
+
+    // First call - success
+    await handleActionClick(tab);
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: SUCCESS_ICON,
+      tabId: 500
+    });
+
+    // Advance halfway through delay
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY / 2);
+
+    // Second call - should set success icon again
+    await handleActionClick(tab);
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: SUCCESS_ICON,
+      tabId: 500
+    });
+
+    // Complete all timers
+    jest.runAllTimers();
+
+    // Should have restored to default
+    expect(chrome.action.setIcon).toHaveBeenLastCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 500
+    });
+  });
+
+  test('icon restoration is isolated per tab', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{ result: true }]);
+
+    // Click on tab 1
+    await handleActionClick({ id: 1 });
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: SUCCESS_ICON,
+      tabId: 1
+    });
+
+    // Click on tab 2
+    await handleActionClick({ id: 2 });
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: SUCCESS_ICON,
+      tabId: 2
+    });
+
+    // Advance timer and check both tabs restore independently
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY);
+
+    // Both tabs should restore to default
+    const iconCalls = chrome.action.setIcon.mock.calls;
+    expect(iconCalls).toContainEqual([{ path: DEFAULT_ICON, tabId: 1 }]);
+    expect(iconCalls).toContainEqual([{ path: DEFAULT_ICON, tabId: 2 }]);
+  });
+});
+
+describe('timer management', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('multiple showBadge calls create independent timers', () => {
+    showBadge(1, BADGE_SUCCESS, SUCCESS_ICON);
+    showBadge(2, BADGE_SUCCESS, SUCCESS_ICON);
+
+    // Advance time partially
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY / 2);
+
+    // Neither should be cleared yet
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(2);
+
+    // Advance to complete first timer
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY / 2);
+
+    // Both should be cleared now
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(4);
+  });
+
+  test('showBadge with error badge clears after delay', () => {
+    showBadge(123, BADGE_ERROR, ERROR_ICON);
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✗',
+      tabId: 123
+    });
+
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY);
+
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({
+      text: '',
+      tabId: 123
+    });
+  });
+
+  test('partial timer advancement does not clear badge', () => {
+    showBadge(999, BADGE_SUCCESS, SUCCESS_ICON);
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1);
+
+    // Advance only halfway
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY / 2);
+
+    // Badge should not be cleared yet
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1);
+  });
 });
