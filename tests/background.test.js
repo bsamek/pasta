@@ -288,3 +288,235 @@ describe('integration scenarios', () => {
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '✓', tabId: 3 });
   });
 });
+
+describe('handleActionClick - additional edge cases', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    chrome.scripting.executeScript.mockReset();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('handles result with frameId property', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{
+      result: true,
+      frameId: 0
+    }]);
+
+    await handleActionClick({ id: 123 });
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✓',
+      tabId: 123
+    });
+  });
+
+  test('handles multiple frames in results', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([
+      { result: true, frameId: 0 },
+      { result: false, frameId: 1 }
+    ]);
+
+    await handleActionClick({ id: 123 });
+
+    // Should show success based on first frame result
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✓',
+      tabId: 123
+    });
+  });
+
+  test('handles network error during script execution', async () => {
+    chrome.scripting.executeScript.mockRejectedValue(new Error('net::ERR_INTERNET_DISCONNECTED'));
+
+    await handleActionClick({ id: 123 });
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✗',
+      tabId: 123
+    });
+  });
+
+  test('handles chrome runtime errors', async () => {
+    chrome.scripting.executeScript.mockRejectedValue(new Error('Cannot access a chrome:// URL'));
+
+    await handleActionClick({ id: 123 });
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✗',
+      tabId: 123
+    });
+  });
+
+  test('handles extension context invalidated error', async () => {
+    chrome.scripting.executeScript.mockRejectedValue(
+      new Error('Extension context invalidated')
+    );
+
+    await handleActionClick({ id: 123 });
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✗',
+      tabId: 123
+    });
+  });
+
+  test('handles tab closed during execution', async () => {
+    chrome.scripting.executeScript.mockRejectedValue(
+      new Error('No tab with id: 123')
+    );
+
+    await handleActionClick({ id: 123 });
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✗',
+      tabId: 123
+    });
+  });
+
+  test('handles result with error property', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{
+      result: null,
+      error: { message: 'Script error' }
+    }]);
+
+    await handleActionClick({ id: 123 });
+
+    // No badge shown when result is null/falsy
+    expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+  });
+
+  test('handles zero as tab id', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{ result: true }]);
+
+    await handleActionClick({ id: 0 });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+      target: { tabId: 0 },
+      files: ['content.js']
+    });
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✓',
+      tabId: 0
+    });
+  });
+
+  test('handles very large tab id', async () => {
+    chrome.scripting.executeScript.mockResolvedValue([{ result: true }]);
+    const largeTabId = 2147483647; // Max 32-bit signed integer
+
+    await handleActionClick({ id: largeTabId });
+
+    expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+      target: { tabId: largeTabId },
+      files: ['content.js']
+    });
+  });
+});
+
+describe('showBadge - additional edge cases', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('handles zero as tabId', () => {
+    showBadge(0, BADGE_SUCCESS);
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '✓',
+      tabId: 0
+    });
+  });
+
+  test('multiple badges clear independently', () => {
+    showBadge(1, BADGE_SUCCESS);
+
+    jest.advanceTimersByTime(1000);
+
+    showBadge(2, BADGE_SUCCESS);
+
+    jest.advanceTimersByTime(1000);
+
+    // First badge should be cleared
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '',
+      tabId: 1
+    });
+
+    jest.advanceTimersByTime(1000);
+
+    // Second badge should also be cleared
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '',
+      tabId: 2
+    });
+  });
+
+  test('badge clear timeout uses correct delay', () => {
+    showBadge(123, BADGE_SUCCESS);
+
+    // Badge should not be cleared before delay
+    jest.advanceTimersByTime(BADGE_CLEAR_DELAY - 1);
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1);
+
+    // Badge should be cleared exactly at delay
+    jest.advanceTimersByTime(1);
+    expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(2);
+  });
+
+  test('handles custom badge config', () => {
+    const customBadge = { text: '!', color: '#FF0000' };
+    showBadge(123, customBadge);
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '!',
+      tabId: 123
+    });
+    expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalledWith({
+      color: '#FF0000',
+      tabId: 123
+    });
+  });
+
+  test('handles empty text badge', () => {
+    const emptyBadge = { text: '', color: '#000000' };
+    showBadge(123, emptyBadge);
+
+    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
+      text: '',
+      tabId: 123
+    });
+  });
+});
+
+describe('constants validation', () => {
+  test('BADGE_SUCCESS color is valid hex', () => {
+    expect(BADGE_SUCCESS.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  });
+
+  test('BADGE_ERROR color is valid hex', () => {
+    expect(BADGE_ERROR.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  });
+
+  test('BADGE_CLEAR_DELAY is positive number', () => {
+    expect(BADGE_CLEAR_DELAY).toBeGreaterThan(0);
+  });
+
+  test('DEFAULT_ICON contains all required sizes', () => {
+    expect(DEFAULT_ICON).toHaveProperty('16');
+    expect(DEFAULT_ICON).toHaveProperty('48');
+    expect(DEFAULT_ICON).toHaveProperty('128');
+  });
+
+  test('DEFAULT_ICON paths have correct extension', () => {
+    expect(DEFAULT_ICON[16]).toMatch(/\.png$/);
+    expect(DEFAULT_ICON[48]).toMatch(/\.png$/);
+    expect(DEFAULT_ICON[128]).toMatch(/\.png$/);
+  });
+});

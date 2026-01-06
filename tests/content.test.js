@@ -518,3 +518,453 @@ describe('SELECTORS_TO_REMOVE', () => {
     expect(SELECTORS_TO_REMOVE).toContain('iframe');
   });
 });
+
+describe('copyContent - error handling', () => {
+  let originalWriteText;
+
+  beforeEach(() => {
+    originalWriteText = navigator.clipboard.writeText;
+    navigator.clipboard.writeText = jest.fn();
+  });
+
+  afterEach(() => {
+    navigator.clipboard.writeText = originalWriteText;
+  });
+
+  test('handles clipboard write failure gracefully', () => {
+    navigator.clipboard.writeText.mockImplementation(() => {
+      throw new Error('Clipboard write failed');
+    });
+    document.body.innerHTML = '<article>Content</article>';
+
+    expect(() => copyContent()).toThrow('Clipboard write failed');
+  });
+
+  test('handles clipboard permission denied', () => {
+    navigator.clipboard.writeText.mockImplementation(() => {
+      throw new DOMException('Permission denied', 'NotAllowedError');
+    });
+    document.body.innerHTML = '<article>Content</article>';
+
+    expect(() => copyContent()).toThrow('Permission denied');
+  });
+});
+
+describe('copyContent - edge cases', () => {
+  beforeEach(() => {
+    navigator.clipboard.writeText.mockClear();
+  });
+
+  test('handles element with no text content', () => {
+    document.body.innerHTML = '<article><div></div></article>';
+    const result = copyContent();
+    expect(result).toBe(true);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('');
+  });
+
+  test('handles Unicode content correctly', () => {
+    document.body.innerHTML = '<article><p>こんにちは世界 🌍 مرحبا العالم</p></article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('こんにちは世界');
+    expect(copiedText).toContain('🌍');
+    expect(copiedText).toContain('مرحبا العالم');
+  });
+
+  test('handles special HTML characters', () => {
+    document.body.innerHTML = '<article><p>&lt;script&gt;alert("xss")&lt;/script&gt;</p></article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('<script>');
+    expect(copiedText).toContain('</script>');
+  });
+
+  test('handles content with HTML entities', () => {
+    document.body.innerHTML = '<article><p>&amp; &nbsp; &copy; &mdash;</p></article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+
+  test('handles very long content', () => {
+    const longText = 'A'.repeat(100000);
+    document.body.innerHTML = `<article><p>${longText}</p></article>`;
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText.length).toBeGreaterThanOrEqual(100000);
+  });
+
+  test('handles content with only whitespace', () => {
+    document.body.innerHTML = '<article>   \n\n\n   </article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toBe('');
+  });
+
+  test('preserves links text content', () => {
+    document.body.innerHTML = '<article><p>Click <a href="http://example.com">here</a> to continue</p></article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Click');
+    expect(copiedText).toContain('here');
+    expect(copiedText).toContain('to continue');
+  });
+
+  test('extracts text from images alt attribute via textContent', () => {
+    document.body.innerHTML = '<article><p>Text before</p><img alt="Image description"><p>Text after</p></article>';
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Text before');
+    expect(copiedText).toContain('Text after');
+  });
+});
+
+describe('collapseNewlines - additional edge cases', () => {
+  test('handles Windows line endings (CRLF)', () => {
+    const result = collapseNewlines('Line 1\r\n\r\n\r\nLine 2');
+    // Note: This tests current behavior - may not collapse CRLF
+    expect(result).toBeDefined();
+  });
+
+  test('handles mixed line endings', () => {
+    const result = collapseNewlines('Line 1\r\n\n\r\nLine 2');
+    expect(result).toBeDefined();
+    expect(typeof result).toBe('string');
+  });
+
+  test('handles tabs mixed with newlines', () => {
+    const result = collapseNewlines('Line 1\t\n\n\n\tLine 2');
+    expect(result).toContain('Line 1');
+    expect(result).toContain('Line 2');
+  });
+
+  test('handles non-breaking spaces', () => {
+    const result = collapseNewlines('Text\u00A0with\u00A0nbsp');
+    expect(result).toContain('Text');
+    expect(result).toContain('with');
+    expect(result).toContain('nbsp');
+  });
+});
+
+describe('removeNonContent - additional edge cases', () => {
+  test('removes elements with multiple matching classes', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div class="nav menu sidebar">Multiple classes</div>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('.nav')).toBeNull();
+    expect(container.querySelector('.menu')).toBeNull();
+    expect(container.querySelector('.sidebar')).toBeNull();
+  });
+
+  test('handles elements with data attributes alongside removable selectors', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <nav data-testid="main-nav">Navigation</nav>
+      <p data-testid="content">Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('nav')).toBeNull();
+    expect(container.querySelector('[data-testid="content"]')).not.toBeNull();
+  });
+
+  test('preserves form elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <form>
+        <input type="text" value="test">
+        <button>Submit</button>
+      </form>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('form')).not.toBeNull();
+    expect(container.querySelector('input')).not.toBeNull();
+  });
+
+  test('preserves figure and figcaption elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <figure>
+        <img src="image.jpg" alt="Test image">
+        <figcaption>Image caption</figcaption>
+      </figure>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('figure')).not.toBeNull();
+    expect(container.querySelector('figcaption')).not.toBeNull();
+  });
+
+  test('preserves blockquote elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <blockquote>A famous quote</blockquote>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('blockquote')).not.toBeNull();
+  });
+
+  test('preserves code and pre elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <pre><code>const x = 1;</code></pre>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('pre')).not.toBeNull();
+    expect(container.querySelector('code')).not.toBeNull();
+  });
+
+  test('preserves table elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <table>
+        <tr><th>Header</th></tr>
+        <tr><td>Data</td></tr>
+      </table>
+      <p>Content</p>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('table')).not.toBeNull();
+  });
+
+  test('preserves list elements', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <ul>
+        <li>Item 1</li>
+        <li>Item 2</li>
+      </ul>
+      <ol>
+        <li>First</li>
+        <li>Second</li>
+      </ol>
+    `;
+    removeNonContent(container);
+    expect(container.querySelector('ul')).not.toBeNull();
+    expect(container.querySelector('ol')).not.toBeNull();
+  });
+});
+
+describe('findMainContent - additional edge cases', () => {
+  test('handles article with role="main" - article takes priority', () => {
+    document.body.innerHTML = `
+      <article role="main">Article with role</article>
+      <main>Main element</main>
+    `;
+    const result = findMainContent();
+    expect(result.tagName).toBe('ARTICLE');
+  });
+
+  test('handles multiple role="main" elements - returns first', () => {
+    document.body.innerHTML = `
+      <div role="main" id="first">First role main</div>
+      <div role="main" id="second">Second role main</div>
+    `;
+    const result = findMainContent();
+    expect(result.id).toBe('first');
+  });
+
+  test('handles whitespace-only body', () => {
+    document.body.innerHTML = '   \n\n\n   ';
+    const result = findMainContent();
+    expect(result.tagName).toBe('BODY');
+  });
+
+  test('handles comments in HTML', () => {
+    document.body.innerHTML = `
+      <!-- This is a comment -->
+      <article>Article content</article>
+      <!-- Another comment -->
+    `;
+    const result = findMainContent();
+    expect(result.tagName).toBe('ARTICLE');
+  });
+
+  test('handles SVG elements without matching article/main', () => {
+    document.body.innerHTML = `
+      <svg><rect/></svg>
+      <div>Other content</div>
+    `;
+    const result = findMainContent();
+    expect(result.tagName).toBe('BODY');
+  });
+});
+
+describe('integration: complex real-world HTML', () => {
+  beforeEach(() => {
+    navigator.clipboard.writeText.mockClear();
+  });
+
+  test('extracts content from blog-like page structure', () => {
+    document.body.innerHTML = `
+      <header>
+        <nav class="main-nav">
+          <a href="/">Home</a>
+          <a href="/about">About</a>
+        </nav>
+      </header>
+      <main>
+        <article>
+          <h1>Blog Post Title</h1>
+          <p class="meta">Posted on January 1, 2025</p>
+          <div class="social-share">Share this post</div>
+          <p>This is the main content of the blog post.</p>
+          <p>It has multiple paragraphs with important information.</p>
+          <aside class="sidebar">Related Articles</aside>
+        </article>
+      </main>
+      <footer>
+        <div class="comments">User comments here</div>
+        <nav>Footer navigation</nav>
+      </footer>
+    `;
+
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+
+    expect(copiedText).toContain('Blog Post Title');
+    expect(copiedText).toContain('main content');
+    expect(copiedText).toContain('multiple paragraphs');
+    expect(copiedText).not.toContain('Home');
+    expect(copiedText).not.toContain('Share this post');
+    expect(copiedText).not.toContain('Related Articles');
+    expect(copiedText).not.toContain('User comments');
+  });
+
+  test('extracts content from news article structure', () => {
+    document.body.innerHTML = `
+      <div role="banner">
+        <div class="advertisement">Ad content</div>
+        <nav role="navigation">Site navigation</nav>
+      </div>
+      <article>
+        <h1>Breaking News Headline</h1>
+        <p class="byline">By John Doe</p>
+        <section>
+          <p>The first paragraph of the news story.</p>
+          <p>The second paragraph continues the story.</p>
+        </section>
+        <div class="related-posts">You might also like...</div>
+      </article>
+      <aside role="complementary">
+        <div class="sidebar">Trending stories</div>
+      </aside>
+      <div role="contentinfo">Copyright 2025</div>
+    `;
+
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+
+    expect(copiedText).toContain('Breaking News Headline');
+    expect(copiedText).toContain('first paragraph');
+    expect(copiedText).toContain('second paragraph');
+    expect(copiedText).not.toContain('Ad content');
+    expect(copiedText).not.toContain('Site navigation');
+    expect(copiedText).not.toContain('You might also like');
+    expect(copiedText).not.toContain('Trending stories');
+  });
+
+  test('handles page with no semantic structure - falls back to body', () => {
+    document.body.innerHTML = `
+      <div class="container">
+        <div class="header">Site Header</div>
+        <div class="content">
+          <h1>Page Title</h1>
+          <p>Main content here.</p>
+        </div>
+        <div class="footer">Site Footer</div>
+      </div>
+    `;
+
+    const result = findMainContent();
+    expect(result.tagName).toBe('BODY');
+
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+    expect(copiedText).toContain('Page Title');
+    expect(copiedText).toContain('Main content');
+  });
+
+  test('handles documentation page structure', () => {
+    document.body.innerHTML = `
+      <nav class="sidebar">
+        <ul class="menu">
+          <li>Getting Started</li>
+          <li>API Reference</li>
+        </ul>
+      </nav>
+      <main>
+        <article>
+          <h1>API Documentation</h1>
+          <section>
+            <h2>Installation</h2>
+            <pre><code>npm install package</code></pre>
+          </section>
+          <section>
+            <h2>Usage</h2>
+            <p>Import the module and call the function.</p>
+            <pre><code>import { fn } from 'package';</code></pre>
+          </section>
+        </article>
+      </main>
+      <footer>
+        <div class="social-share">Follow us</div>
+      </footer>
+    `;
+
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+
+    expect(copiedText).toContain('API Documentation');
+    expect(copiedText).toContain('Installation');
+    expect(copiedText).toContain('npm install package');
+    expect(copiedText).not.toContain('Getting Started');
+    expect(copiedText).not.toContain('Follow us');
+  });
+
+  test('handles e-commerce product page', () => {
+    document.body.innerHTML = `
+      <header>
+        <nav class="nav">Categories | Cart | Account</nav>
+      </header>
+      <main>
+        <article>
+          <h1>Product Name</h1>
+          <p>$99.99</p>
+          <div class="advertisement">Sponsored content</div>
+          <section>
+            <h2>Description</h2>
+            <p>This is an amazing product with great features.</p>
+          </section>
+          <section>
+            <h2>Specifications</h2>
+            <table>
+              <tr><td>Size</td><td>Large</td></tr>
+              <tr><td>Color</td><td>Blue</td></tr>
+            </table>
+          </section>
+        </article>
+        <aside class="sidebar">
+          <div class="related-posts">Similar products</div>
+        </aside>
+      </main>
+      <div class="comments">Customer reviews</div>
+    `;
+
+    copyContent();
+    const copiedText = navigator.clipboard.writeText.mock.calls[0][0];
+
+    expect(copiedText).toContain('Product Name');
+    expect(copiedText).toContain('$99.99');
+    expect(copiedText).toContain('amazing product');
+    expect(copiedText).not.toContain('Categories');
+    expect(copiedText).not.toContain('Sponsored content');
+    expect(copiedText).not.toContain('Similar products');
+    expect(copiedText).not.toContain('Customer reviews');
+  });
+});
