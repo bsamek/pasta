@@ -3,7 +3,8 @@ const {
   showBadge,
   BADGE_SUCCESS,
   BADGE_ERROR,
-  BADGE_CLEAR_DELAY
+  BADGE_CLEAR_DELAY,
+  DEFAULT_ICON
 } = require('../background.js');
 
 describe('constants', () => {
@@ -25,6 +26,14 @@ describe('constants', () => {
 
   test('BADGE_CLEAR_DELAY is 2000ms', () => {
     expect(BADGE_CLEAR_DELAY).toBe(2000);
+  });
+
+  test('DEFAULT_ICON has correct paths', () => {
+    expect(DEFAULT_ICON).toEqual({
+      16: 'icons/icon16.png',
+      48: 'icons/icon48.png',
+      128: 'icons/icon128.png'
+    });
   });
 });
 
@@ -90,6 +99,21 @@ describe('showBadge', () => {
       expect.objectContaining({ tabId })
     );
   });
+
+  test('sets icon with default icon path', () => {
+    showBadge(123, BADGE_SUCCESS);
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 123
+    });
+  });
+
+  test('sets icon before setting badge text', () => {
+    showBadge(123, BADGE_SUCCESS);
+    const setIconOrder = chrome.action.setIcon.mock.invocationCallOrder[0];
+    const setBadgeTextOrder = chrome.action.setBadgeText.mock.invocationCallOrder[0];
+    expect(setIconOrder).toBeLessThan(setBadgeTextOrder);
+  });
 });
 
 describe('handleActionClick', () => {
@@ -120,6 +144,10 @@ describe('handleActionClick', () => {
 
     await handleActionClick(mockTab);
 
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 123
+    });
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
       text: '✓',
       tabId: 123
@@ -136,6 +164,10 @@ describe('handleActionClick', () => {
 
     await handleActionClick(mockTab);
 
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 123
+    });
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
       text: '✗',
       tabId: 123
@@ -208,6 +240,12 @@ describe('integration scenarios', () => {
 
     await handleActionClick(tab);
 
+    // Icon should be set first
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 100
+    });
+
     // Badge should be shown
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
       text: '✓',
@@ -230,6 +268,12 @@ describe('integration scenarios', () => {
     const tab = { id: 200 };
 
     await handleActionClick(tab);
+
+    // Icon should be set first
+    expect(chrome.action.setIcon).toHaveBeenCalledWith({
+      path: DEFAULT_ICON,
+      tabId: 200
+    });
 
     // Error badge should be shown
     expect(chrome.action.setBadgeText).toHaveBeenCalledWith({

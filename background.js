@@ -1,6 +1,11 @@
 const BADGE_SUCCESS = { text: '✓', color: '#4CAF50' };
 const BADGE_ERROR = { text: '✗', color: '#f44336' };
 const BADGE_CLEAR_DELAY = 2000;
+const DEFAULT_ICON = {
+  16: 'icons/icon16.png',
+  48: 'icons/icon48.png',
+  128: 'icons/icon128.png'
+};
 
 async function handleActionClick(tab) {
   try {
@@ -19,6 +24,7 @@ async function handleActionClick(tab) {
 }
 
 function showBadge(tabId, { text, color }) {
+  chrome.action.setIcon({ path: DEFAULT_ICON, tabId });
   chrome.action.setBadgeText({ text, tabId });
   chrome.action.setBadgeBackgroundColor({ color, tabId });
 
@@ -39,6 +45,7 @@ if (typeof module !== 'undefined' && module.exports) {
     showBadge,
     BADGE_SUCCESS,
     BADGE_ERROR,
-    BADGE_CLEAR_DELAY
+    BADGE_CLEAR_DELAY,
+    DEFAULT_ICON
   };
 }

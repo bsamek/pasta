@@ -5,7 +5,8 @@ global.chrome = {
       addListener: jest.fn()
     },
     setBadgeText: jest.fn(),
-    setBadgeBackgroundColor: jest.fn()
+    setBadgeBackgroundColor: jest.fn(),
+    setIcon: jest.fn().mockResolvedValue(undefined)
   },
   scripting: {
     executeScript: jest.fn()
