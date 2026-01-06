@@ -177,15 +177,12 @@ describe('handleActionClick', () => {
     });
   });
 
-  test('shows error badge when result is false', async () => {
+  test('does not show badge when result is false', async () => {
     chrome.scripting.executeScript.mockResolvedValue([{ result: false }]);
 
     await handleActionClick(mockTab);
 
-    expect(chrome.action.setBadgeText).toHaveBeenCalledWith({
-      text: '✗',
-      tabId: 123
-    });
+    expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
   });
 
   test('does not show success badge when results array is empty', async () => {

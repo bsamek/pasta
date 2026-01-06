@@ -54,20 +54,16 @@
 
   // Extract and copy content
   async function copyContent() {
-    try {
-      const mainContent = findMainContent();
-      const clone = mainContent.cloneNode(true);
-      removeNonContent(clone);
+    const mainContent = findMainContent();
+    const clone = mainContent.cloneNode(true);
+    removeNonContent(clone);
 
-      // Use innerText if available (browser), fallback to textContent (jsdom)
-      const rawText = clone.innerText || clone.textContent || '';
-      const text = collapseNewlines(rawText);
+    // Use innerText if available (browser), fallback to textContent (jsdom)
+    const rawText = clone.innerText || clone.textContent || '';
+    const text = collapseNewlines(rawText);
 
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      return false;
-    }
+    await navigator.clipboard.writeText(text);
+    return true;
   }
 
   // Export for testing

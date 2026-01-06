@@ -450,11 +450,10 @@ describe('copyContent', () => {
     expect(result).toBe(true);
   });
 
-  test('returns false when clipboard write fails', async () => {
+  test('rejects when clipboard write fails', async () => {
     document.body.innerHTML = '<article>Content</article>';
     navigator.clipboard.writeText.mockRejectedValueOnce(new Error('Permission denied'));
-    const result = await copyContent();
-    expect(result).toBe(false);
+    await expect(copyContent()).rejects.toThrow('Permission denied');
   });
 
   test('does not modify the original DOM', () => {
