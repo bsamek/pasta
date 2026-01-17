@@ -177,7 +177,7 @@ describe('handleActionClick', () => {
     });
   });
 
-  test('does not show success badge when result is falsy', async () => {
+  test('does not show badge when result is false', async () => {
     chrome.scripting.executeScript.mockResolvedValue([{ result: false }]);
 
     await handleActionClick(mockTab);
